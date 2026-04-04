@@ -1,7 +1,7 @@
 # Mini-UnionFS Design Document
 
 **Course:** Cloud Computing – UE23CS351B  
-**Team:** 3  
+**Team:** 4 
 **Members:** Shubhangi Srivastava, Shuchika Joy, Sinchana Rathnakar, Siri Basavaraj  
 
 ---
