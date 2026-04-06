@@ -23,7 +23,7 @@ mini_unionfs program (userspace)
 │      UPPER DIR  ./upper/  [rw]       │  ← all writes land here
 │      LOWER DIR  ./lower/  [ro]       │  ← base image, never modified
 └──────────────────────────────────────┘
- Whiteout: upper/.wh.<filename> → hides lower/<filename> from merged view
+Whiteout: upper/.wh.<filename> → hides lower/<filename> from merged view
 
 When a user application performs any filesystem operation (read, write, delete, list), the Linux kernel forwards the call through the FUSE kernel module to our `mini_unionfs` userspace program. Our program applies union logic and responds accordingly.
 
@@ -84,17 +84,17 @@ Does upper/.wh.config.txt exist?
 |
 YES  |  NO
 |
-return -ENOENT          Does upper/config.txt exist?
-(file is hidden)                 |
+return -ENOENT     Does upper/config.txt exist?
+(file is hidden)            |
 YES  |  NO
 |
-return   |          Does lower/config.txt exist?
-upper    |                   |
-path     |              YES  |  NO
-|                   |
-|        return     |   return -ENOENT
-|        lower      |   (not found)
-|        path
+return   |      Does lower/config.txt exist?
+upper    |               |
+path     |          YES  |  NO
+|               |
+|    return     |   return -ENOENT
+|    lower      |   (not found)
+|    path
 
 ### 3.2 Priority Rules
 
@@ -125,7 +125,7 @@ resolve_path("/config.txt") → found in lower/config.txt
 ▼
 Check: does upper/config.txt exist?
 |
-NO   |
+NO |
 ▼
 cow_copy("/config.txt") triggered
 → opens lower/config.txt for reading
@@ -166,7 +166,7 @@ delete it       upper/.wh.config.txt (empty file)
 |               |
 ▼               ▼
 File gone        Next resolve_path("/config.txt"):
-from mount       → sees .wh.config.txt in upper
+from mount        → sees .wh.config.txt in upper
 → returns -ENOENT immediately
 → file appears deleted to user ✓
 lower/config.txt still physically exists on disk (untouched)
