@@ -10,7 +10,7 @@
 
 Mini-UnionFS is a simplified Union File System implemented using FUSE (Filesystem in Userspace). It simulates the layered filesystem model used in container technologies like Docker, where multiple directory layers are merged into a single unified view without duplicating files.
 
-The system stacks two directories — a read-only lower layer and a writable upper layer — and presents them as one merged filesystem at a mount point.
+The system stacks two directories: a read-only lower layer and a writable upper layer, and presents them as one merged filesystem at a mount point.
 USER APPLICATION (ls, cat, echo, rm ...)
 |
 LINUX KERNEL → FUSE kernel module
@@ -142,7 +142,7 @@ lower/config.txt is completely untouched ✓
 
 ### 4.2 Why CoW Matters
 
-Without CoW, writing to a lower-layer file would be impossible (it's read-only) or would require duplicating the entire filesystem upfront. CoW makes writes lazy — files are only copied when actually modified, which saves storage and time.
+Without CoW, writing to a lower-layer file would be impossible (it's read-only) or would require duplicating the entire filesystem upfront. CoW makes writes lazy, files are only copied when actually modified, which saves storage and time.
 
 ---
 
