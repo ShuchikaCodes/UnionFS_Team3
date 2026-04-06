@@ -1,7 +1,7 @@
 # Mini-UnionFS Design Document
 
 **Course:** Cloud Computing – UE23CS351B  
-**Team:** 4 
+**Team:** 4  
 **Members:** Shubhangi Srivastava, Shuchika Joy, Sinchana Rathnakar, Siri Basavaraj  
 
 ---
@@ -11,23 +11,19 @@
 Mini-UnionFS is a simplified Union File System implemented using FUSE (Filesystem in Userspace). It simulates the layered filesystem model used in container technologies like Docker, where multiple directory layers are merged into a single unified view without duplicating files.
 
 The system stacks two directories — a read-only lower layer and a writable upper layer — and presents them as one merged filesystem at a mount point.
-
-```
 USER APPLICATION (ls, cat, echo, rm ...)
-            |
-     LINUX KERNEL → FUSE kernel module
-            |
-     mini_unionfs program (userspace)
-            |
-     ┌──────────────────────────────────────┐
-     │      MERGED VIEW  /mnt/       	    │  ← what the user sees
-     ├──────────────────────────────────────┤
-     │      UPPER DIR  ./upper/  [rw]       │  ← all writes land here
-     │      LOWER DIR  ./lower/  [ro]       │  ← base image, never modified
-     └──────────────────────────────────────┘
-
-     Whiteout: upper/.wh.<filename> → hides lower/<filename> from merged view
-```
+|
+LINUX KERNEL → FUSE kernel module
+|
+mini_unionfs program (userspace)
+|
+┌──────────────────────────────────────┐
+│      MERGED VIEW  /mnt/              │  ← what the user sees
+├──────────────────────────────────────┤
+│      UPPER DIR  ./upper/  [rw]       │  ← all writes land here
+│      LOWER DIR  ./lower/  [ro]       │  ← base image, never modified
+└──────────────────────────────────────┘
+ Whiteout: upper/.wh.<filename> → hides lower/<filename> from merged view
 
 When a user application performs any filesystem operation (read, write, delete, list), the Linux kernel forwards the call through the FUSE kernel module to our `mini_unionfs` userspace program. Our program applies union logic and responds accordingly.
 
@@ -38,7 +34,6 @@ When a user application performs any filesystem operation (read, write, delete, 
 ### 2.1 Global State: `mini_unionfs_state`
 
 The entire program revolves around one central struct defined in `unionfs.c`:
-
 ```c
 struct mini_unionfs_state {
     char *lower_dir;   // absolute path to the lower (read-only) directory
@@ -47,13 +42,11 @@ struct mini_unionfs_state {
 ```
 
 This struct is populated at startup in `main()` using `realpath()` to resolve absolute paths, then passed into FUSE as private data:
-
 ```c
 return fuse_main(fuse_argc, fuse_argv, &unionfs_oper, state);
 ```
 
 Every FUSE callback retrieves this state via the `UNIONFS_DATA` macro:
-
 ```c
 #define UNIONFS_DATA ((struct mini_unionfs_state *) fuse_get_context()->private_data)
 ```
@@ -63,7 +56,6 @@ This allows any function anywhere in the codebase to access `lower_dir` and `upp
 ### 2.2 FUSE Operations Table: `fuse_operations`
 
 FUSE requires registering all filesystem callbacks in a `fuse_operations` struct:
-
 ```c
 static struct fuse_operations unionfs_oper = {
     .getattr = unionfs_getattr,   // file metadata (ls -l, stat)
@@ -85,27 +77,24 @@ static struct fuse_operations unionfs_oper = {
 Every single FUSE callback begins by calling `resolve_path()`. It is the backbone of the entire system. Its job is to answer: **"For this virtual path, where does the file actually live on disk?"**
 
 ### 3.1 Resolution Algorithm
-
-```
 Input path (e.g. /config.txt)
-         |
-         ▼
+|
+▼
 Does upper/.wh.config.txt exist?
-         |
-    YES  |  NO
-         |
-    return -ENOENT          Does upper/config.txt exist?
-    (file is hidden)                 |
-                               YES  |  NO
-                                    |
-                           return   |          Does lower/config.txt exist?
-                           upper    |                   |
-                           path     |              YES  |  NO
-                                    |                   |
-                                    |        return     |   return -ENOENT
-                                    |        lower      |   (not found)
-                                    |        path
-```
+|
+YES  |  NO
+|
+return -ENOENT          Does upper/config.txt exist?
+(file is hidden)                 |
+YES  |  NO
+|
+return   |          Does lower/config.txt exist?
+upper    |                   |
+path     |              YES  |  NO
+|                   |
+|        return     |   return -ENOENT
+|        lower      |   (not found)
+|        path
 
 ### 3.2 Priority Rules
 
@@ -125,34 +114,31 @@ Upper always wins over lower. A whiteout always wins over both.
 Copy-on-Write is the mechanism that allows the lower layer to remain completely untouched even when a user modifies a file through the mount point.
 
 ### 4.1 Step-by-Step Flow
-
-```
 User runs: echo "modified" >> /mnt/config.txt
-         |
-         ▼
+|
+▼
 unionfs_open() called with O_WRONLY flag
-         |
-         ▼
+|
+▼
 resolve_path("/config.txt") → found in lower/config.txt
-         |
-         ▼
+|
+▼
 Check: does upper/config.txt exist?
-         |
-    NO   |
-         ▼
+|
+NO   |
+▼
 cow_copy("/config.txt") triggered
-  → opens lower/config.txt for reading
-  → creates upper/config.txt for writing
-  → copies all bytes from lower → upper
-  → preserves file permissions (fchmod)
-  → closes both file descriptors
-         |
-         ▼
+→ opens lower/config.txt for reading
+→ creates upper/config.txt for writing
+→ copies all bytes from lower → upper
+→ preserves file permissions (fchmod)
+→ closes both file descriptors
+|
+▼
 Write now happens on upper/config.txt
-         |
-         ▼
+|
+▼
 lower/config.txt is completely untouched ✓
-```
 
 ### 4.2 Why CoW Matters
 
@@ -165,29 +151,25 @@ Without CoW, writing to a lower-layer file would be impossible (it's read-only) 
 Since the lower directory is read-only, files cannot be physically deleted from it. Instead, deletion is simulated using **whiteout marker files**.
 
 ### 5.1 Step-by-Step Flow
-
-```
 User runs: rm /mnt/config.txt
-         |
-         ▼
+|
+▼
 unionfs_unlink() called
-         |
-         ▼
+|
+▼
 Does upper/config.txt exist?
-         |
-    YES  |  NO (file is lower-only)
-         |
+|
+YES  |  NO (file is lower-only)
+|
 physically      Create whiteout marker:
 delete it       upper/.wh.config.txt (empty file)
-         |               |
-         ▼               ▼
+|               |
+▼               ▼
 File gone        Next resolve_path("/config.txt"):
 from mount       → sees .wh.config.txt in upper
-                 → returns -ENOENT immediately
-                 → file appears deleted to user ✓
-
+→ returns -ENOENT immediately
+→ file appears deleted to user ✓
 lower/config.txt still physically exists on disk (untouched)
-```
 
 ### 5.2 Whiteout in Directory Listing
 
@@ -214,9 +196,25 @@ Then when scanning lower, any file whose name appears in `hidden[]` is skipped e
 
 ---
 
-## 7. File Structure
+## 7. Testing
 
+Automated via `tests/test_unionfs.sh`. Run with:
+```bash
+bash tests/test_unionfs.sh
 ```
+
+| Test | Description | Type |
+|------|-------------|------|
+| 1 | Lower file visible in merged view | Spec |
+| 2 | Copy-on-Write — lower file stays unmodified after edit via mount | Spec |
+| 3 | Whiteout — `.wh.` marker created in upper on delete; lower untouched | Spec |
+| 4 | New file created via mount appears only in upper, not lower | Extension |
+| 5 | Upper layer overrides lower when same filename exists in both | Extension |
+| 6 | `mkdir` via mount creates directory in upper only | Extension |
+
+---
+
+## 8. File Structure
 mini-unionfs/
 ├── src/
 │   ├── unionfs.c       ← Member 1: main(), global state, resolve_path(), FUSE boilerplate
@@ -229,12 +227,10 @@ mini-unionfs/
 │   ├── design_doc.md   ← this document
 │   └── README.md       ← build and run instructions
 └── Makefile            ← Member 1
-```
 
 ---
 
-## 8. Build & Run Summary
-
+## 9. Build & Run Summary
 ```bash
 # Install dependencies
 sudo apt install libfuse-dev fuse build-essential
