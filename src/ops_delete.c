@@ -17,6 +17,8 @@ struct mini_unionfs_state {
 };
 #define UNIONFS_DATA ((struct mini_unionfs_state *) fuse_get_context()->private_data)
 
+int unionfs_unlink(const char *path);
+int unionfs_rmdir(const char *path);
 
 // ─── Helper: build whiteout path ────────────────────────────────────────────
 static void build_whiteout_path(const char *path, char *out) {
